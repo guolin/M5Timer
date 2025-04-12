@@ -28,7 +28,7 @@ const SCREEN_SIZE = LED_MATRIX_SIZE + 2 * SCREEN_BORDER;  // 屏幕大小（9.6c
 const DEVICE_SIZE = SCREEN_SIZE + 2 * OUTER_BORDER;  // 设备大小（10cm x 10cm）
 
 // 缩放因子（像素/厘米）
-const SCALE = 30;
+const SCALE = 20;
 
 // 计算像素尺寸
 const LED_PIXEL_SIZE = LED_UNIT * SCALE;
@@ -48,27 +48,45 @@ const CANVAS_HEIGHT = MATRIX_ROWS * (DEVICE_PIXEL_SIZE + BUTTON_PIXEL_HEIGHT);
 let leds = [];
 let game;  // 只需要一个游戏实例
 
+// 游戏状态
+let gameState = {
+    currentScreen: 'start',
+    score: 0,
+    highScore: 0,
+    gameOver: false,
+    explosionParticles: []  // 爆炸粒子
+};
+
 class Game {
     constructor() {
         this.reset();
     }
 
     reset() {
+        // 初始化玩家
         this.player = {
             x: TOTAL_WIDTH / 2,
             y: TOTAL_HEIGHT - 2,
             lives: 3,
             bullets: [],
-            lastShootTime: 0  // 添加上次发射时间
+            lastShootTime: 0
         };
+        
+        // 创建爆炸效果
+        gameState.explosionParticles = createExplosion(this.player.x, this.player.y);
+        
+        // 初始化其他游戏状态
         this.aliens = [];
         this.alienBullets = [];
         this.shields = [];
-        this.score = 0;
-        this.gameOver = false;
-        this.alienDirection = 1;  // 1向右，-1向左
-        this.alienStepDown = false;
-        this.moveTimer = 0;
+        this.alienDirection = 1;
+        this.alienSpeed = 1;
+        this.lastAlienMoveTime = 0;
+        this.lastAlienShootTime = 0;
+        this.moveTimer = 0;  // 添加移动计时器
+        this.alienStepDown = false;  // 添加下移标志
+        this.score = 0;  // 添加分数
+        this.gameOver = false;  // 添加游戏结束标志
         this.initAliens();
         this.initShields();
     }
@@ -88,18 +106,24 @@ class Game {
     }
 
     initShields() {
-        // 创建5个掩体
+        // 创建5个掩体，每个掩体是3x2的矩形
         for (let i = 0; i < 5; i++) {
             let baseX = i * 6 + 3;
-            // 每个掩体是3x2的矩形
-            for (let y = 0; y < 2; y++) {
-                for (let x = 0; x < 3; x++) {
-                    this.shields.push({
-                        x: baseX + x,
-                        y: TOTAL_HEIGHT - 4 + y,
-                        health: 2
-                    });
-                }
+            // 上面一排掩体
+            for (let x = 0; x < 3; x++) {
+                this.shields.push({
+                    x: baseX + x,
+                    y: TOTAL_HEIGHT - 5,
+                    health: 2
+                });
+            }
+            // 下面一排掩体
+            for (let x = 0; x < 3; x++) {
+                this.shields.push({
+                    x: baseX + x,
+                    y: TOTAL_HEIGHT - 4,
+                    health: 2
+                });
             }
         }
     }
@@ -109,7 +133,7 @@ class Game {
 
         // 更新外星人移动
         this.moveTimer++;
-        if (this.moveTimer >= 5) {  // 改为每5帧移动一次，原来是10帧
+        if (this.moveTimer >= 5) {
             this.moveTimer = 0;
             this.moveAliens();
         }
@@ -119,25 +143,75 @@ class Game {
             let bullet = this.player.bullets[i];
             bullet.y--;
 
-            // 检查是否击中掩体
-            for (let shield of this.shields) {
-                if (shield.health > 0 && bullet.x === shield.x && bullet.y === shield.y) {
-                    shield.health--;
+            // 检查是否与外星人子弹相撞
+            let bulletCollided = false;
+            for (let j = this.alienBullets.length - 1; j >= 0; j--) {
+                let alienBullet = this.alienBullets[j];
+                if (bullet.x === alienBullet.x && bullet.y === alienBullet.y) {
+                    // 子弹相撞，双方子弹都消失
                     this.player.bullets.splice(i, 1);
+                    this.alienBullets.splice(j, 1);
+                    bulletCollided = true;
                     break;
                 }
             }
+            if (bulletCollided) continue;
+
+            // 检查是否击中掩体 - 从下往上检查
+            let hitShield = false;
+            for (let shield of this.shields) {
+                if (shield.health > 0 && bullet.x === shield.x && bullet.y === shield.y) {
+                    // 如果是下面一排的掩体
+                    if (shield.y === TOTAL_HEIGHT - 4) {
+                        shield.health--;
+                        hitShield = true;
+                        if (shield.health > 0) {
+                            this.player.bullets.splice(i, 1);
+                            break;
+                        }
+                    }
+                    // 如果是上面一排的掩体
+                    else if (shield.y === TOTAL_HEIGHT - 5) {
+                        // 检查下面一排的掩体是否已经被摧毁
+                        let bottomShield = this.shields.find(s => 
+                            s.x === shield.x && s.y === TOTAL_HEIGHT - 4 && s.health > 0);
+                        if (bottomShield) {
+                            // 如果下面一排的掩体还存在，子弹被阻挡
+                            this.player.bullets.splice(i, 1);
+                            break;
+                        } else {
+                            // 如果下面一排的掩体已经被摧毁，可以击中上面一排
+                            shield.health--;
+                            hitShield = true;
+                            if (shield.health > 0) {
+                                this.player.bullets.splice(i, 1);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (hitShield) continue;
 
             // 检查是否击中外星人
             for (let alien of this.aliens) {
                 if (alien.alive && bullet.x === alien.x && bullet.y === alien.y) {
-                    alien.alive = false;
-                    this.player.bullets.splice(i, 1);
-                    this.score += (3 - alien.type) * 10;  // 不同类型分数不同
-                    break;
+                    // 检查这一列是否有掩体阻挡
+                    let hasShield = this.shields.some(s => 
+                        s.x === bullet.x && s.health > 0);
+                    if (!hasShield) {
+                        alien.alive = false;
+                        this.player.bullets.splice(i, 1);
+                        this.score += (3 - alien.type) * 10;
+                        // 创建爆炸效果
+                        gameState.explosionParticles = createExplosion(alien.x, alien.y);
+                        break;
+                    }
                 }
             }
 
+            // 如果子弹超出屏幕顶部，移除它
             if (bullet.y < 0) {
                 this.player.bullets.splice(i, 1);
             }
@@ -148,45 +222,96 @@ class Game {
             let bullet = this.alienBullets[i];
             bullet.y++;
 
-            // 检查是否击中掩体
+            // 检查是否击中掩体 - 从上往下检查
+            let hitShield = false;
             for (let shield of this.shields) {
                 if (shield.health > 0 && bullet.x === shield.x && bullet.y === shield.y) {
-                    shield.health--;
+                    // 如果是上面一排的掩体
+                    if (shield.y === TOTAL_HEIGHT - 5) {
+                        shield.health--;
+                        hitShield = true;
+                        if (shield.health > 0) {
+                            this.alienBullets.splice(i, 1);
+                            break;
+                        }
+                    }
+                    // 如果是下面一排的掩体
+                    else if (shield.y === TOTAL_HEIGHT - 4) {
+                        // 检查上面一排的掩体是否已经被摧毁
+                        let topShield = this.shields.find(s => 
+                            s.x === shield.x && s.y === TOTAL_HEIGHT - 5 && s.health > 0);
+                        if (topShield) {
+                            // 如果上面一排的掩体还存在，子弹被阻挡
+                            this.alienBullets.splice(i, 1);
+                            break;
+                        } else {
+                            // 如果上面一排的掩体已经被摧毁，可以击中下面一排
+                            shield.health--;
+                            hitShield = true;
+                            if (shield.health > 0) {
+                                this.alienBullets.splice(i, 1);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (hitShield) continue;
+
+            // 检查是否击中玩家
+            if (bullet.x === this.player.x && bullet.y === this.player.y) {
+                // 检查这一列是否有掩体阻挡
+                let hasShield = this.shields.some(s => 
+                    s.x === bullet.x && s.health > 0);
+                if (!hasShield) {
+                    this.player.lives--;
                     this.alienBullets.splice(i, 1);
+                    if (this.player.lives <= 0) {
+                        this.gameOver = true;
+                    }
                     break;
                 }
             }
 
-            // 检查是否击中玩家
-            if (bullet.x === this.player.x && bullet.y === this.player.y) {
-                this.player.lives--;
-                this.alienBullets.splice(i, 1);
-                if (this.player.lives <= 0) {
-                    this.gameOver = true;
-                }
-                break;
-            }
-
+            // 如果子弹超出屏幕底部，移除它
             if (bullet.y >= TOTAL_HEIGHT) {
                 this.alienBullets.splice(i, 1);
             }
         }
 
         // 外星人发射子弹
-        if (Math.random() < 0.05) {  // 5%概率发射子弹
+        const currentTime = Date.now();
+        if (currentTime - this.lastAlienShootTime > 1000) {
             let aliveAliens = this.aliens.filter(a => a.alive);
-            if (aliveAliens.length > 0) {
-                let shooter = aliveAliens[Math.floor(Math.random() * aliveAliens.length)];
+            if (aliveAliens.length >= 4) {
+                // 优先选择玩家所在列的外星人
+                let playerColumnAliens = aliveAliens.filter(a => a.x === this.player.x);
+                let shooter;
+                
+                if (playerColumnAliens.length > 0 && Math.random() < 0.7) {  // 70%概率选择玩家所在列
+                    shooter = playerColumnAliens[Math.floor(Math.random() * playerColumnAliens.length)];
+                } else {
+                    // 30%概率选择其他列的外星人
+                    let otherAliens = aliveAliens.filter(a => a.x !== this.player.x);
+                    if (otherAliens.length > 0) {
+                        shooter = otherAliens[Math.floor(Math.random() * otherAliens.length)];
+                    } else {
+                        shooter = aliveAliens[Math.floor(Math.random() * aliveAliens.length)];
+                    }
+                }
+                
                 this.alienBullets.push({
                     x: shooter.x,
                     y: shooter.y + 1
                 });
+                this.lastAlienShootTime = currentTime;
             }
         }
 
         // 检查是否胜利
         if (this.aliens.every(a => !a.alive)) {
-            this.initAliens();  // 开始新的一波
+            this.initAliens();
         }
 
         // 检查外星人是否到达底部
@@ -369,7 +494,11 @@ function keyPressed() {
 }
 
 function draw() {
-    background(200);  // 浅灰色背景
+    background(0);
+    
+    // 更新和绘制爆炸效果
+    updateExplosion();
+    drawExplosion();
     
     // 绘制所有矩阵
     for (let row = 0; row < MATRIX_ROWS; row++) {
@@ -426,5 +555,50 @@ function drawMatrix(row, col) {
                  LED_PIXEL_SIZE, 
                  LED_PIXEL_SIZE);
         }
+    }
+}
+
+// 创建爆炸粒子
+function createExplosion(x, y) {
+    const particles = [];
+    const numParticles = 12;  // 粒子数量
+    
+    for (let i = 0; i < numParticles; i++) {
+        const angle = (i / numParticles) * TWO_PI;
+        const speed = random(1, 3);
+        particles.push({
+            x: x,
+            y: y,
+            vx: cos(angle) * speed,
+            vy: sin(angle) * speed,
+            size: random(2, 4),
+            life: 1.0
+        });
+    }
+    
+    return particles;
+}
+
+// 更新爆炸粒子
+function updateExplosion() {
+    for (let i = gameState.explosionParticles.length - 1; i >= 0; i--) {
+        const p = gameState.explosionParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= 0.05;
+        
+        if (p.life <= 0) {
+            gameState.explosionParticles.splice(i, 1);
+        }
+    }
+}
+
+// 绘制爆炸粒子
+function drawExplosion() {
+    for (const p of gameState.explosionParticles) {
+        const alpha = p.life * 255;
+        fill(255, 255, 0, alpha);
+        noStroke();
+        circle(p.x, p.y, p.size);
     }
 } 
