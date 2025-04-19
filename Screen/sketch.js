@@ -386,7 +386,10 @@ let gameState = {
     highScore: 0,
     gameOver: false,
     explosions: [],  // 爆炸效果数组
-    paused: false  // 添加暂停标志
+    paused: false,  // 添加暂停标志
+    isGameStarted: false,  // 游戏是否已开始
+    countdown: 0,  // 开始倒计时
+    lastCountdownUpdate: 0  // 上次倒计时更新时间
 };
 
 // 大心形图案定义 (7x7)
@@ -421,6 +424,110 @@ const SKULL_PATTERN = [
     [1, 0, 0, 0, 0, 0, 0, 1]
 ];
 
+// 数字图案定义 (4x8)
+const DIGIT_PATTERNS = [
+    [ // 0
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0]
+    ],
+    [ // 1
+        [0, 0, 1, 0],
+        [0, 1, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 1, 1, 1]
+    ],
+    [ // 2
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [1, 0, 0, 0],
+        [1, 0, 0, 0],
+        [1, 1, 1, 1]
+    ],
+    [ // 3
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [0, 0, 0, 1],
+        [0, 1, 1, 0],
+        [0, 0, 0, 1],
+        [0, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0]
+    ],
+    [ // 4
+        [0, 0, 0, 1],
+        [0, 0, 1, 1],
+        [0, 1, 0, 1],
+        [1, 0, 0, 1],
+        [1, 1, 1, 1],
+        [0, 0, 0, 1],
+        [0, 0, 0, 1],
+        [0, 0, 0, 1]
+    ],
+    [ // 5
+        [1, 1, 1, 1],
+        [1, 0, 0, 0],
+        [1, 0, 0, 0],
+        [1, 1, 1, 0],
+        [0, 0, 0, 1],
+        [0, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0]
+    ],
+    [ // 6
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 0, 0],
+        [1, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0]
+    ],
+    [ // 7
+        [1, 1, 1, 1],
+        [0, 0, 0, 1],
+        [0, 0, 1, 0],
+        [0, 0, 1, 0],
+        [0, 1, 0, 0],
+        [0, 1, 0, 0],
+        [1, 0, 0, 0],
+        [1, 0, 0, 0]
+    ],
+    [ // 8
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0]
+    ],
+    [ // 9
+        [0, 1, 1, 0],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 1],
+        [0, 0, 0, 1],
+        [1, 0, 0, 1],
+        [0, 1, 1, 0]
+    ]
+];
+
 class Game {
     constructor() {
         this.reset();
@@ -451,6 +558,11 @@ class Game {
         this.alienStepDown = false;
         this.score = 0;
         this.gameOver = false;
+        
+        // 初始化倒计时
+        this.countdown = 60; // 60秒倒计时
+        this.lastCountdownUpdate = Date.now();
+        
         this.initAliens();
         this.initShields();
     }
@@ -494,6 +606,19 @@ class Game {
 
     update() {
         if (this.gameOver) return;
+
+        // 更新倒计时
+        const countdownCurrentTime = Date.now();
+        if (countdownCurrentTime - this.lastCountdownUpdate >= 1000) { // 每秒更新一次
+            this.countdown--;
+            this.lastCountdownUpdate = countdownCurrentTime;
+            
+            // 倒计时结束，游戏结束
+            if (this.countdown <= 0) {
+                this.gameOver = true;
+                return;
+            }
+        }
 
         // 更新外星人移动
         this.moveTimer++;
@@ -607,7 +732,19 @@ class Game {
                     if (!hasShield) {
                         alien.alive = false;
                         this.player.bullets.splice(i, 1);
-                        this.score += (3 - alien.type) * 10;
+                        
+                        // 根据外星人类型增加分数
+                        switch(alien.type) {
+                            case 0: // 第一排外星人
+                                this.score += 1;
+                                break;
+                            case 1: // 第二排外星人
+                                this.score += 2;
+                                break;
+                            case 2: // 第三排外星人
+                                this.score += 4;
+                                break;
+                        }
                         
                         // 添加一个爆炸效果到gameState.explosions数组
                         gameState.explosions.push(createExplosion(alien.x, alien.y, 'alien'));
@@ -690,8 +827,8 @@ class Game {
         }
 
         // 外星人发射子弹
-        const currentTime = Date.now();
-        if (currentTime - this.lastAlienShootTime > currentDifficulty.alienShootInterval) {
+        const alienShootCurrentTime = Date.now();
+        if (alienShootCurrentTime - this.lastAlienShootTime > currentDifficulty.alienShootInterval) {
             let aliveAliens = this.aliens.filter(a => a.alive);
             if (aliveAliens.length >= 4) {
                 // 优先选择玩家所在列的外星人
@@ -714,7 +851,7 @@ class Game {
                     x: shooter.x,
                     y: shooter.y + 1
                 });
-                this.lastAlienShootTime = currentTime;
+                this.lastAlienShootTime = alienShootCurrentTime;
                 
                 // 播放外星人射击声音
                 playSoundSafely(alienShootSound);
@@ -792,6 +929,52 @@ class Game {
             }
         };
 
+        // 绘制分数（显示在第4个屏幕，即第一行最后一列）
+        const scoreStr = String(this.score).padStart(2, '0');
+        const tensDigit = parseInt(scoreStr[0]);
+        const onesDigit = parseInt(scoreStr[1]);
+        
+        // 绘制十位数（蓝色）
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 4; x++) {
+                if (DIGIT_PATTERNS[tensDigit][y][x]) {
+                    leds[0][3][y][x] = color(0, 0, 255); // 蓝色
+                }
+            }
+        }
+        
+        // 绘制个位数（绿色）
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 4; x++) {
+                if (DIGIT_PATTERNS[onesDigit][y][x]) {
+                    leds[0][3][y][x + 4] = color(0, 255, 0); // 绿色
+                }
+            }
+        }
+
+        // 绘制倒计时（显示在第12个屏幕，即第3行第4列）
+        const countdownStr = String(this.countdown).padStart(2, '0');
+        const countdownTensDigit = parseInt(countdownStr[0]);
+        const countdownOnesDigit = parseInt(countdownStr[1]);
+        
+        // 绘制十位数（红色）
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 4; x++) {
+                if (DIGIT_PATTERNS[countdownTensDigit][y][x]) {
+                    leds[2][3][y][x] = color(255, 0, 0); // 红色
+                }
+            }
+        }
+        
+        // 绘制个位数（黄色）
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 4; x++) {
+                if (DIGIT_PATTERNS[countdownOnesDigit][y][x]) {
+                    leds[2][3][y][x + 4] = color(255, 255, 0); // 黄色
+                }
+            }
+        }
+
         // 绘制生命值(在第8个屏幕,即第2行第4列)
         const lifeRow = 1; // 第2行
         const lifeCol = 3; // 第4列
@@ -809,12 +992,6 @@ class Game {
         } else {
             // 死亡：显示骷髅头
             drawPattern(lifeRow, lifeCol, SKULL_PATTERN, color(255, 255, 255));
-        }
-
-        // 绘制分数（显示在最上方）
-        let scoreStr = String(this.score).padStart(4, '0');
-        for (let i = 0; i < scoreStr.length; i++) {
-            setLED(i, 0, color(...SCORE_COLOR));
         }
 
         // 绘制玩家
@@ -918,8 +1095,8 @@ class Game {
         if (this.gameOver) return;
 
         // 检查发射冷却时间
-        const currentTime = Date.now();
-        if (currentTime - this.player.lastShootTime < 500) {  // 500ms冷却时间
+        const playerShootCurrentTime = Date.now();
+        if (playerShootCurrentTime - this.player.lastShootTime < 500) {  // 500ms冷却时间
             return;
         }
 
@@ -927,7 +1104,7 @@ class Game {
             x: this.player.x,
             y: this.player.y - 1
         });
-        this.player.lastShootTime = currentTime;
+        this.player.lastShootTime = playerShootCurrentTime;
         
         // 播放玩家射击声音
         playSoundSafely(playerShootSound);
@@ -1012,8 +1189,10 @@ function initDialogControl() {
     if (pauseGameButton) {
         pauseGameButton.addEventListener('click', () => {
             console.log('暂停游戏按钮被点击');
-            gameState.paused = !gameState.paused;
-            pauseGameButton.textContent = gameState.paused ? '继续游戏' : '暂停游戏';
+            if (gameState.isGameStarted) {
+                gameState.paused = !gameState.paused;
+                pauseGameButton.textContent = gameState.paused ? '继续游戏' : '暂停游戏';
+            }
         });
     } else {
         console.error('找不到暂停游戏按钮');
@@ -1023,9 +1202,17 @@ function initDialogControl() {
     if (restartGameButton) {
         restartGameButton.addEventListener('click', () => {
             console.log('重启游戏按钮被点击');
-            game.reset();
-            gameState.paused = false;
-            pauseGameButton.textContent = '暂停游戏';
+            if (gameState.isGameStarted) {
+                // 如果游戏已经开始，点击后重新开始
+                game.reset();
+                gameState.paused = false;
+                gameState.isGameStarted = false;
+                restartGameButton.textContent = '开始';
+                pauseGameButton.textContent = '暂停游戏';
+            } else {
+                // 如果游戏还没开始，点击后开始倒计时
+                startCountdown();
+            }
         });
     } else {
         console.error('找不到重启游戏按钮');
@@ -1142,9 +1329,33 @@ function sendLEDData() {
     }
 }
 
-// 修改updateGame函数，添加串口数据发送
+// 添加开始倒计时函数
+function startCountdown() {
+    gameState.countdown = 3;  // 3秒倒计时
+    gameState.lastCountdownUpdate = Date.now();
+    gameState.isGameStarted = true;
+    document.getElementById('restartGame').textContent = '重新开始';
+}
+
+// 修改updateGame函数
 function updateGame() {
-    if (!gameState.paused) {
+    // 处理开始倒计时
+    if (gameState.isGameStarted && gameState.countdown > 0) {
+        const currentTime = Date.now();
+        if (currentTime - gameState.lastCountdownUpdate >= 1000) {  // 每秒更新一次
+            gameState.countdown--;
+            gameState.lastCountdownUpdate = currentTime;
+            
+            // 倒计时结束，开始游戏
+            if (gameState.countdown <= 0) {
+                game.reset();
+                gameState.paused = false;
+            }
+        }
+        return;  // 倒计时期间不更新游戏
+    }
+    
+    if (!gameState.paused && gameState.isGameStarted) {
         game.update();
     }
     game.draw();
@@ -1186,6 +1397,54 @@ function draw() {
     for (let row = 0; row < MATRIX_ROWS; row++) {
         for (let col = 0; col < MATRIX_COLS; col++) {
             drawMatrix(row, col);
+        }
+    }
+    
+    // 如果正在倒计时，在3x3的LED矩阵上显示倒计时数字
+    if (gameState.isGameStarted && gameState.countdown > 0) {
+        // 清空3x3游戏区域的LED
+        for (let row = 0; row < MATRIX_ROWS; row++) {
+            for (let col = 0; col < GAME_COLS; col++) {
+                for (let y = 0; y < LED_SIZE; y++) {
+                    for (let x = 0; x < LED_SIZE; x++) {
+                        leds[row][col][y][x] = color(0, 0, 0);
+                    }
+                }
+            }
+        }
+        
+        // 绘制大数字（使用24x24的空间）
+        const digit = gameState.countdown;
+        const digitPattern = DIGIT_PATTERNS[digit];
+        
+        // 计算数字在24x24空间中的位置
+        const startX = 6;  // 水平居中
+        const startY = 0;  // 调整到最上方
+        
+        // 放大数字（3倍）
+        for (let y = 0; y < 8; y++) {
+            for (let x = 0; x < 4; x++) {
+                if (digitPattern[y][x]) {
+                    // 绘制3x3的像素块
+                    for (let dy = 0; dy < 3; dy++) {
+                        for (let dx = 0; dx < 3; dx++) {
+                            const pixelX = startX + x * 3 + dx;
+                            const pixelY = startY + y * 3 + dy;
+                            
+                            // 计算对应的矩阵和局部坐标
+                            const matrixRow = Math.floor(pixelY / LED_SIZE);
+                            const matrixCol = Math.floor(pixelX / LED_SIZE);
+                            const localY = pixelY % LED_SIZE;
+                            const localX = pixelX % LED_SIZE;
+                            
+                            if (matrixRow >= 0 && matrixRow < MATRIX_ROWS && 
+                                matrixCol >= 0 && matrixCol < GAME_COLS) {
+                                leds[matrixRow][matrixCol][localY][localX] = color(255, 255, 255); // 白色
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
