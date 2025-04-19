@@ -1,8 +1,10 @@
 // 常量定义
-const MATRIX_COLS = 4;  // 矩阵列数
+const MATRIX_COLS = 4;  // 总矩阵列数
 const MATRIX_ROWS = 3;  // 矩阵行数
+const GAME_COLS = 3;    // 游戏显示区域列数
 const LED_SIZE = 8;     // 每个矩阵的LED数量（8x8）
 const TOTAL_WIDTH = MATRIX_COLS * LED_SIZE;  // 总宽度 32
+const GAME_WIDTH = GAME_COLS * LED_SIZE;     // 游戏区域宽度 24
 const TOTAL_HEIGHT = MATRIX_ROWS * LED_SIZE; // 总高度 24
 const LED_UNIT = 1.0;   // 单个LED的尺寸（厘米）
 const SCREEN_BORDER = 0.8;  // 屏幕边框宽度（厘米）
@@ -49,24 +51,24 @@ const DIFFICULTY_LEVELS = {
         alienMoveInterval: 8,
         alienShootInterval: 1500,
         playerColumnShootChance: 0.5,
-        alienRows: 4,
-        alienCols: 6
+        alienRows: 3,
+        alienCols: 5
     },
     NORMAL: {
         alienSpeed: 1,
         alienMoveInterval: 5,
         alienShootInterval: 1000,
         playerColumnShootChance: 0.7,
-        alienRows: 5,
-        alienCols: 8
+        alienRows: 4,
+        alienCols: 6
     },
     HARD: {
         alienSpeed: 1.5,
         alienMoveInterval: 3,
         alienShootInterval: 1000,
         playerColumnShootChance: 0.9,
-        alienRows: 6,
-        alienCols: 10
+        alienRows: 5,
+        alienCols: 7
     }
 };
 
@@ -387,6 +389,38 @@ let gameState = {
     paused: false  // 添加暂停标志
 };
 
+// 大心形图案定义 (7x7)
+const BIG_HEART_PATTERN = [
+    [0, 1, 0, 0, 0, 1, 0],
+    [1, 1, 1, 0, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 1, 1, 0, 0],
+    [0, 0, 0, 1, 0, 0, 0]
+];
+
+// 小心形图案定义 (5x5)
+const SMALL_HEART_PATTERN = [
+    [0, 1, 0, 1, 0],
+    [1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1],
+    [0, 1, 1, 1, 0],
+    [0, 0, 1, 0, 0]
+];
+
+// 骷髅头图案定义 (8x8)
+const SKULL_PATTERN = [
+    [0, 1, 1, 1, 1, 1, 1, 0],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 0, 1, 1, 0, 1, 1],
+    [1, 1, 1, 1, 1, 1, 1, 1],
+    [0, 1, 1, 1, 1, 1, 1, 0],
+    [0, 0, 1, 0, 0, 1, 0, 0],
+    [0, 1, 0, 1, 1, 0, 1, 0],
+    [1, 0, 0, 0, 0, 0, 0, 1]
+];
+
 class Game {
     constructor() {
         this.reset();
@@ -397,7 +431,7 @@ class Game {
         this.player = {
             x: TOTAL_WIDTH / 2,
             y: TOTAL_HEIGHT - 2,
-            lives: 3,
+            lives: 2,  // 改为2条命
             bullets: [],
             lastShootTime: 0
         };
@@ -704,7 +738,7 @@ class Game {
         // 检查是否需要改变方向
         for (let alien of this.aliens) {
             if (!alien.alive) continue;
-            if (this.alienDirection > 0 && alien.x >= TOTAL_WIDTH - 2) {
+            if (this.alienDirection > 0 && alien.x >= GAME_WIDTH - 2) {
                 needsStepDown = true;
                 break;
             }
@@ -745,25 +779,42 @@ class Game {
         }
 
         const setLED = (x, y, color) => {
-            const matrixRow = Math.floor(y / LED_SIZE);
-            const matrixCol = Math.floor(x / LED_SIZE);
-            const localY = y % LED_SIZE;
-            const localX = x % LED_SIZE;
-            if (matrixRow >= 0 && matrixRow < MATRIX_ROWS && 
-                matrixCol >= 0 && matrixCol < MATRIX_COLS) {
-                leds[matrixRow][matrixCol][localY][localX] = color;
+            // 只处理游戏区域内的坐标
+            if (x >= 0 && x < GAME_WIDTH && y >= 0 && y < TOTAL_HEIGHT) {
+                const matrixRow = Math.floor(y / LED_SIZE);
+                const matrixCol = Math.floor(x / LED_SIZE);
+                const localY = y % LED_SIZE;
+                const localX = x % LED_SIZE;
+                if (matrixRow >= 0 && matrixRow < MATRIX_ROWS && 
+                    matrixCol >= 0 && matrixCol < GAME_COLS) {
+                    leds[matrixRow][matrixCol][localY][localX] = color;
+                }
             }
         };
+
+        // 绘制生命值(在第8个屏幕,即第2行第4列)
+        const lifeRow = 1; // 第2行
+        const lifeCol = 3; // 第4列
+        
+        // 根据生命值状态选择图案和颜色
+        if (this.player.lives > 0) {
+            // 满血：红色大爱心
+            if (this.player.lives === 2) {
+                drawPattern(lifeRow, lifeCol, BIG_HEART_PATTERN, color(255, 0, 0), 1, 0);
+            }
+            // 残血：黄色小心
+            else if (this.player.lives === 1) {
+                drawPattern(lifeRow, lifeCol, SMALL_HEART_PATTERN, color(255, 255, 0), 1, 1);
+            }
+        } else {
+            // 死亡：显示骷髅头
+            drawPattern(lifeRow, lifeCol, SKULL_PATTERN, color(255, 255, 255));
+        }
 
         // 绘制分数（显示在最上方）
         let scoreStr = String(this.score).padStart(4, '0');
         for (let i = 0; i < scoreStr.length; i++) {
             setLED(i, 0, color(...SCORE_COLOR));
-        }
-
-        // 绘制生命值（显示在右上角）
-        for (let i = 0; i < this.player.lives; i++) {
-            setLED(TOTAL_WIDTH - 1 - i, 0, color(...PLAYER_COLOR));
         }
 
         // 绘制玩家
@@ -917,129 +968,6 @@ function preload() {
 function setup() {
     createCanvas(CANVAS_WIDTH, CANVAS_HEIGHT);
     
-    // 初始化对话框控制
-    initDialogControl();
-    
-    // 尝试激活音频上下文
-    if (typeof getAudioContext === 'function') {
-        const audioContext = getAudioContext();
-        console.log("初始音频上下文状态:", audioContext.state);
-        
-        // 用户交互时激活音频
-        document.addEventListener('click', function activateAudioOnInteraction() {
-            if (!audioActivated && audioContext.state === 'suspended') {
-                audioContext.resume().then(() => {
-                    console.log('音频上下文已激活');
-                    audioActivated = true;
-                    
-                    // 测试播放一个短暂的静音音频以确保激活
-                    if (playerShootSound && playerShootSound.isLoaded()) {
-                        const currentVolume = playerShootSound.getVolume();
-                        playerShootSound.setVolume(0.01);
-                        playerShootSound.play();
-                        setTimeout(() => {
-                            playerShootSound.setVolume(currentVolume);
-                        }, 100);
-                    }
-                }).catch(err => {
-                    console.error("激活音频上下文失败:", err);
-                });
-            }
-            
-            // 一旦激活，移除事件监听器
-            if (audioActivated) {
-                document.removeEventListener('click', activateAudioOnInteraction);
-            }
-        });
-        
-        // 添加键盘事件也可以触发音频激活
-        document.addEventListener('keydown', function activateAudioOnKey() {
-            if (!audioActivated && audioContext.state === 'suspended') {
-                audioContext.resume().then(() => {
-                    console.log('通过键盘激活音频上下文');
-                    audioActivated = true;
-                }).catch(err => {
-                    console.error("激活音频上下文失败:", err);
-                });
-            }
-            
-            // 一旦激活，移除事件监听器
-            if (audioActivated) {
-                document.removeEventListener('keydown', activateAudioOnKey);
-            }
-        });
-    }
-    
-    // 尝试自动连接之前授权过的串口
-    (async () => {
-        try {
-            const availablePorts = await navigator.serial.getPorts();
-            for (let i = 0; i < availablePorts.length && i < 12; i++) {
-                if (availablePorts[i]) {
-                    try {
-                        // 找到一个尚未连接的屏幕进行连接
-                        let connected = false;
-                        for (let j = 0; j < 12; j++) {
-                            if (!connectedScreens[j]) {
-                                await connectSerial(j);
-                                connected = true;
-                                break;
-                            }
-                        }
-                        if (!connected) {
-                            console.log("所有屏幕已连接，无法连接更多屏幕");
-                        }
-                    } catch (err) {
-                        console.log("自动连接屏幕失败:", err);
-                    }
-                }
-            }
-        } catch (err) {
-            console.log('自动连接失败:', err);
-        }
-    })();
-    
-    // 添加重启游戏按钮事件监听器
-    document.getElementById('restartGame').addEventListener('click', () => {
-        game.reset();
-        gameState.paused = false; // 重启游戏时取消暂停
-        document.getElementById('pauseGame').textContent = '暂停游戏';
-        console.log('游戏已重启');
-    });
-    
-    // 添加暂停按钮事件监听器
-    document.getElementById('pauseGame').addEventListener('click', () => {
-        gameState.paused = !gameState.paused;
-        document.getElementById('pauseGame').textContent = gameState.paused ? '继续游戏' : '暂停游戏';
-        console.log(gameState.paused ? '游戏已暂停' : '游戏已继续');
-    });
-
-    // 添加难度选择按钮事件监听器
-    const difficultyButtons = document.querySelectorAll('.difficulty-button');
-    difficultyButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            const difficulty = button.getAttribute('data-difficulty');
-            switch(difficulty) {
-                case 'easy':
-                    currentDifficulty = DIFFICULTY_LEVELS.EASY;
-                    break;
-                case 'normal':
-                    currentDifficulty = DIFFICULTY_LEVELS.NORMAL;
-                    break;
-                case 'hard':
-                    currentDifficulty = DIFFICULTY_LEVELS.HARD;
-                    break;
-            }
-            // 更新按钮状态
-            difficultyButtons.forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            // 重启游戏以应用新的难度设置
-            game.reset();
-            gameState.paused = false;
-            console.log(`难度已切换为: ${difficulty}`);
-        });
-    });
-    
     // 初始化LED状态
     for (let row = 0; row < MATRIX_ROWS; row++) {
         leds[row] = [];
@@ -1057,44 +985,85 @@ function setup() {
     // 创建一个游戏实例
     game = new Game();
     
+    // 初始化对话框控制
+    initDialogControl();
+    
     // 游戏主循环 - 提高更新频率
     setInterval(updateGame, 100);  // 改为每100ms更新一次，提高碰撞检测精度
 }
 
 // 初始化对话框控制
 function initDialogControl() {
+    console.log('初始化对话框控制...');
+    
     const configButton = document.getElementById('configButton');
     const configDialog = document.getElementById('configDialog');
     const overlay = document.getElementById('overlay');
     const closeConfig = document.getElementById('closeConfig');
     const testButton = document.getElementById('testScreens');
     const screenButtons = document.querySelectorAll('.screen-button');
+    const pauseGameButton = document.getElementById('pauseGame');
+    const restartGameButton = document.getElementById('restartGame');
+    
+    console.log('暂停游戏按钮:', pauseGameButton);
+    console.log('重启游戏按钮:', restartGameButton);
+    
+    // 暂停游戏按钮点击事件
+    if (pauseGameButton) {
+        pauseGameButton.addEventListener('click', () => {
+            console.log('暂停游戏按钮被点击');
+            gameState.paused = !gameState.paused;
+            pauseGameButton.textContent = gameState.paused ? '继续游戏' : '暂停游戏';
+        });
+    } else {
+        console.error('找不到暂停游戏按钮');
+    }
+    
+    // 重启游戏按钮点击事件
+    if (restartGameButton) {
+        restartGameButton.addEventListener('click', () => {
+            console.log('重启游戏按钮被点击');
+            game.reset();
+            gameState.paused = false;
+            pauseGameButton.textContent = '暂停游戏';
+        });
+    } else {
+        console.error('找不到重启游戏按钮');
+    }
     
     // 打开对话框
-    configButton.addEventListener('click', () => {
-        configDialog.style.display = 'block';
-        overlay.style.display = 'block';
-        gameState.paused = true; // 打开对话框时暂停游戏
-    });
+    if (configButton) {
+        configButton.addEventListener('click', () => {
+            configDialog.style.display = 'block';
+            overlay.style.display = 'block';
+            gameState.paused = true; // 打开对话框时暂停游戏
+        });
+    }
     
     // 关闭对话框
-    closeConfig.addEventListener('click', () => {
-        configDialog.style.display = 'none';
-        overlay.style.display = 'none';
-        gameState.paused = false; // 关闭对话框时恢复游戏
-    });
+    if (closeConfig) {
+        closeConfig.addEventListener('click', () => {
+            configDialog.style.display = 'none';
+            overlay.style.display = 'none';
+            gameState.paused = false; // 关闭对话框时恢复游戏
+        });
+    }
     
     // 点击遮罩层关闭对话框
-    overlay.addEventListener('click', () => {
-        configDialog.style.display = 'none';
-        overlay.style.display = 'none';
-        gameState.paused = false; // 关闭对话框时恢复游戏
-    });
+    if (overlay) {
+        overlay.addEventListener('click', () => {
+            configDialog.style.display = 'none';
+            overlay.style.display = 'none';
+            gameState.paused = false; // 关闭对话框时恢复游戏
+        });
+    }
     
     // 测试屏幕按钮
-    testButton.addEventListener('click', () => {
-        testAllScreens();
-    });
+    if (testButton) {
+        testButton.addEventListener('click', () => {
+            testAllScreens();
+        });
+    }
     
     // 屏幕连接按钮
     screenButtons.forEach(button => {
@@ -1109,6 +1078,8 @@ function initDialogControl() {
             }
         });
     });
+    
+    console.log('对话框控制初始化完成');
 }
 
 // 将颜色转换为对应的数字
@@ -1371,5 +1342,23 @@ function playSoundSafely(sound) {
         sound.play();
     } catch (e) {
         console.error("播放声音时出错:", e);
+    }
+}
+
+// 绘制图案
+function drawPattern(row, col, pattern, color, offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1) {
+    const patternHeight = pattern.length;
+    const patternWidth = pattern[0].length;
+    
+    for (let y = 0; y < patternHeight; y++) {
+        for (let x = 0; x < patternWidth; x++) {
+            if (pattern[y][x]) {
+                const drawX = x * scaleX + offsetX;
+                const drawY = y * scaleY + offsetY;
+                if (drawX >= 0 && drawX < 8 && drawY >= 0 && drawY < 8) {
+                    leds[row][col][drawY][drawX] = color;
+                }
+            }
+        }
     }
 } 
