@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>游戏音效生成器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 10px 15px;
+            margin: 10px;
+            cursor: pointer;
+        }
+        .sound-group {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>游戏音效生成器</h1>
+    <p>点击按钮生成并下载所需的游戏音效文件。</p>
+    
+    <div class="sound-group">
+        <h2>玩家射击音效</h2>
+        <button id="playPlayerShoot">播放</button>
+        <button id="downloadPlayerShoot">下载 player_shoot.wav</button>
+    </div>
+    
+    <div class="sound-group">
+        <h2>外星人射击音效</h2>
+        <button id="playAlienShoot">播放</button>
+        <button id="downloadAlienShoot">下载 alien_shoot.wav</button>
+    </div>
+    
+    <div class="sound-group">
+        <h2>爆炸音效</h2>
+        <button id="playExplosion">播放</button>
+        <button id="downloadExplosion">下载 explosion.wav</button>
+    </div>
+    
+    <script>
+        // Web Audio API 上下文
+        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        
+        // 生成玩家射击音效
+        function generatePlayerShootSound() {
+            const duration = 0.15; // 持续时间（秒）
+            const sampleRate = audioContext.sampleRate;
+            const frameCount = sampleRate * duration;
+            const audioBuffer = audioContext.createBuffer(2, frameCount, sampleRate); // 改为双声道
+            const leftChannel = audioBuffer.getChannelData(0);
+            const rightChannel = audioBuffer.getChannelData(1);
+            
+            // 生成一个简单的下降音调
+            for (let i = 0; i < frameCount; i++) {
+                const t = i / sampleRate;
+                const frequency = 800 - 2000 * t; // 从800Hz降到400Hz
+                const sample = 0.5 * Math.sin(2 * Math.PI * frequency * t);
+                
+                // 应用简单的音量包络（淡出）
+                const envelope = 1 - t / duration;
+                leftChannel[i] = sample * envelope;
+                rightChannel[i] = sample * envelope;
+            }
+            
+            return audioBuffer;
+        }
+        
+        // 生成外星人射击音效
+        function generateAlienShootSound() {
+            const duration = 0.2; // 持续时间（秒）
+            const sampleRate = audioContext.sampleRate;
+            const frameCount = sampleRate * duration;
+            const audioBuffer = audioContext.createBuffer(2, frameCount, sampleRate); // 改为双声道
+            const leftChannel = audioBuffer.getChannelData(0);
+            const rightChannel = audioBuffer.getChannelData(1);
+            
+            // 生成一个简单的上升音调
+            for (let i = 0; i < frameCount; i++) {
+                const t = i / sampleRate;
+                const frequency = 200 + 500 * t; // 从200Hz升到700Hz
+                const sample = 0.5 * Math.sin(2 * Math.PI * frequency * t);
+                
+                // 应用简单的音量包络（淡出）
+                const envelope = 1 - t / duration;
+                leftChannel[i] = sample * envelope;
+                rightChannel[i] = sample * envelope;
+            }
+            
+            return audioBuffer;
+        }
+        
+        // 生成爆炸音效
+        function generateExplosionSound() {
+            const duration = 0.4; // 持续时间（秒）
+            const sampleRate = audioContext.sampleRate;
+            const frameCount = sampleRate * duration;
+            const audioBuffer = audioContext.createBuffer(2, frameCount, sampleRate); // 改为双声道
+            const leftChannel = audioBuffer.getChannelData(0);
+            const rightChannel = audioBuffer.getChannelData(1);
+            
+            // 生成噪声爆炸
+            for (let i = 0; i < frameCount; i++) {
+                const t = i / sampleRate;
+                // 白噪声 + 一些低频内容
+                const noise = (Math.random() * 2 - 1) * 0.6;
+                const lowFreq = 0.4 * Math.sin(2 * Math.PI * 80 * t);
+                const sample = noise + lowFreq;
+                
+                // 应用音量包络
+                const envelope = Math.exp(-4 * t);
+                leftChannel[i] = sample * envelope;
+                rightChannel[i] = sample * envelope;
+            }
+            
+            return audioBuffer;
+        }
+        
+        // 播放音频缓冲区
+        function playAudioBuffer(audioBuffer) {
+            const source = audioContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(audioContext.destination);
+            source.start();
+        }
+        
+        // 将音频缓冲区转换为WAV格式的Blob对象
+        function audioBufferToWav(audioBuffer) {
+            const numChannels = audioBuffer.numberOfChannels;
+            const sampleRate = audioBuffer.sampleRate;
+            const format = 1; // PCM
+            const bitDepth = 16;
+            
+            // 计算数据大小
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            const dataSize = audioBuffer.length * blockAlign;
+            
+            // 创建缓冲区
+            const buffer = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(buffer);
+            
+            // 写入WAV文件头
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * blockAlign, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+            
+            // 写入音频数据
+            let offset = 44;
+            for (let i = 0; i < audioBuffer.length; i++) {
+                for (let channel = 0; channel < numChannels; channel++) {
+                    const sample = audioBuffer.getChannelData(channel)[i];
+                    const int16Sample = Math.max(-1, Math.min(1, sample)) * 0x7FFF;
+                    view.setInt16(offset, int16Sample, true);
+                    offset += 2;
+                }
+            }
+            
+            return new Blob([buffer], { type: 'audio/wav' });
+        }
+        
+        // 辅助函数：写入字符串
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        
+        // 创建下载链接
+        function createDownloadLink(audioBuffer, filename) {
+            const blob = audioBufferToWav(audioBuffer);
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        // 生成所有音效
+        const playerShootBuffer = generatePlayerShootSound();
+        const alienShootBuffer = generateAlienShootSound();
+        const explosionBuffer = generateExplosionSound();
+        
+        // 事件处理程序
+        document.getElementById('playPlayerShoot').addEventListener('click', () => {
+            audioContext.resume();
+            playAudioBuffer(playerShootBuffer);
+        });
+        
+        document.getElementById('downloadPlayerShoot').addEventListener('click', () => {
+            createDownloadLink(playerShootBuffer, 'player_shoot.wav');
+        });
+        
+        document.getElementById('playAlienShoot').addEventListener('click', () => {
+            audioContext.resume();
+            playAudioBuffer(alienShootBuffer);
+        });
+        
+        document.getElementById('downloadAlienShoot').addEventListener('click', () => {
+            createDownloadLink(alienShootBuffer, 'alien_shoot.wav');
+        });
+        
+        document.getElementById('playExplosion').addEventListener('click', () => {
+            audioContext.resume();
+            playAudioBuffer(explosionBuffer);
+        });
+        
+        document.getElementById('downloadExplosion').addEventListener('click', () => {
+            createDownloadLink(explosionBuffer, 'explosion.wav');
+        });
+    </script>
+</body>
+</html> 

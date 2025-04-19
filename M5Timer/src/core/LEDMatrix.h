@@ -21,7 +21,6 @@ public:
     void update();
     void clear();
     void clearAll();
-    void showTestPattern();
     
     // 像素操作
     void setPixel(int x, int y, uint32_t color);
@@ -30,8 +29,9 @@ public:
     // 数字显示相关方法
     void showNumber(int number, uint32_t color = COLOR_GREEN);  // 默认绿色
     void showTwoNumbers(int leftNum, int rightNum, uint32_t leftColor = COLOR_BLUE, uint32_t rightColor = COLOR_YELLOW);
-    void startCountdown(int fromNumber);                     // 开始倒计时
-    void updateCountdown();                                  // 更新倒计时
+    
+    // 获取NeoPixel对象引用（用于调整亮度）
+    Adafruit_NeoPixel& getStrip();
 
 private:
     Adafruit_NeoPixel strip;
@@ -42,9 +42,4 @@ private:
     uint32_t pixelCache[NUM_LEDS];    // 存储每个像素的当前颜色
     bool pixelChanged[NUM_LEDS];      // 标记每个像素是否发生变化
     bool needsFullUpdate;             // 是否需要完全更新
-    
-    // 倒计时相关变量
-    int currentNumber;
-    unsigned long lastUpdateTime;
-    static const int COUNTDOWN_INTERVAL = 500;  // 500ms
 }; 

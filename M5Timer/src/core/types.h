@@ -66,6 +66,11 @@ struct SensorData {
     float extBatteryVoltage;  // 外部电池电压(V)
     float extBatteryPercentage; // 外部电池百分比(%)
     int extBatteryCurrent;    // 外部电池电流(mA)
+
+    // 陀螺仪信息
+    float roll;              // 横滚角度
+    float pitch;             // 俯仰角度
+    float yaw;               // 偏航角度
 };
 
 // 模式消息类型
@@ -88,13 +93,18 @@ enum EventType {
     EVENT_BUTTON_A_LONG,
     EVENT_BUTTON_B_LONG,
     EVENT_BUTTON_C_LONG,
-    EVENT_SHAKE          // 新增：晃动事件
+    EVENT_SHAKE,          // 晃动事件
+    EVENT_TILT_LEFT,      // 向左倾斜事件
+    EVENT_TILT_RIGHT,     // 向右倾斜事件
+    EVENT_TILT_CENTER     // 恢复中间位置事件
 };
 
 // 模式类型定义
 enum ModeType {
     MODE_BATTERY,
-    MODE_TIMER
+    MODE_TIMER,
+    MODE_SCREEN,
+    MODE_GAME            // 游戏模式
 };
 
 // 事件消息结构

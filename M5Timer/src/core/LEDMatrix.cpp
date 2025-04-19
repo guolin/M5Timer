@@ -111,8 +111,6 @@ const bool DIGITS[10][8][4] = {
 };
 
 LEDMatrix::LEDMatrix() : strip(NUM_LEDS, LED_PIN, NEO_GRB + NEO_KHZ800) {
-    currentNumber = 0;
-    lastUpdateTime = 0;
     needsFullUpdate = true;
     
     // 初始化缓存
@@ -136,6 +134,7 @@ void LEDMatrix::update() {
     for (int i = 0; i < NUM_LEDS; i++) {
         if (pixelChanged[i]) {
             hasChanges = true;
+            strip.setPixelColor(i, pixelCache[i]); // 将更改应用到NeoPixel
             pixelChanged[i] = false;  // 重置变化标记
         }
     }
@@ -148,53 +147,18 @@ void LEDMatrix::update() {
 }
 
 void LEDMatrix::clear() {
-    bool needUpdate = false;
     for (int i = 0; i < NUM_LEDS; i++) {
         if (pixelCache[i] != 0) {
             pixelCache[i] = 0;
             pixelChanged[i] = true;
-            strip.setPixelColor(i, 0);
-            needUpdate = true;
         }
     }
-    if (needUpdate) {
-        strip.show();
-    }
+    // 不直接调用strip.show()，由调用方决定何时更新显示
 }
 
 void LEDMatrix::clearAll() {
     clear();
-}
-
-void LEDMatrix::showTestPattern() {
-    // 清除所有LED
-    clear();
-    delay(50);
-    
-    uint32_t Yellow = 0xFFFF00;
-    
-    // 遍历所有行
-    for(int y = 0; y < 8; y++) {
-        // 左侧3列显示绿色 (0-2)
-        for(int x = 0; x < 3; x++) {
-            int index = getIndex(x, y);
-            strip.setPixelColor(index, Green);
-        }
-        
-        // 中间3列显示黄色 (3-5)
-        for(int x = 3; x < 6; x++) {
-            int index = getIndex(x, y);
-            strip.setPixelColor(index, Yellow);
-        }
-        
-        // 右侧2列显示红色 (6-7)
-        for(int x = 6; x < 8; x++) {
-            int index = getIndex(x, y);
-            strip.setPixelColor(index, Red);
-        }
-    }
-    
-    strip.show();
+    update(); // 显式调用update以更新显示
 }
 
 void LEDMatrix::setPixel(int x, int y, uint32_t color) {
@@ -209,7 +173,7 @@ void LEDMatrix::setPixel(int index, uint32_t color) {
         if (pixelCache[index] != color) {
             pixelCache[index] = color;
             pixelChanged[index] = true;
-            strip.setPixelColor(index, color);
+            // 不直接调用strip.setPixelColor，而是在update时统一处理
         }
     }
 }
@@ -239,7 +203,13 @@ void LEDMatrix::showDigit(int digit, int xOffset, uint32_t color) {
 }
 
 void LEDMatrix::showNumber(int number, uint32_t color) {
-    clear();  // 先清除显示
+    // 先将所有LED设为关闭状态，不调用clear()以避免立即刷新
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            setPixel(x, y, 0);  // 设置为关闭状态
+        }
+    }
+    
     if(number >= 0 && number <= 99) {
         if(number < 10) {
             // 个位数，显示在中间
@@ -250,33 +220,27 @@ void LEDMatrix::showNumber(int number, uint32_t color) {
             showDigit(number % 10, 4, color);
         }
     }
-    update();  // 更新显示
+    update();  // 只在最后更新一次显示
 }
 
 void LEDMatrix::showTwoNumbers(int leftNum, int rightNum, uint32_t leftColor, uint32_t rightColor) {
-    clear();  // 先清除显示
+    // 先将所有LED设为关闭状态，不调用clear()
+    for (int y = 0; y < 8; y++) {
+        for (int x = 0; x < 8; x++) {
+            setPixel(x, y, 0);  // 设置为关闭状态
+        }
+    }
+    
     if(leftNum >= 0 && leftNum <= 9) {
         showDigit(leftNum, 0, leftColor);  // 左边数字使用指定颜色
     }
     if(rightNum >= 0 && rightNum <= 9) {
         showDigit(rightNum, 4, rightColor);   // 右边数字使用指定颜色
     }
-    update();  // 更新显示
+    update();  // 只在最后更新一次显示
 }
 
-void LEDMatrix::startCountdown(int fromNumber) {
-    currentNumber = fromNumber;
-    lastUpdateTime = millis();
-    showNumber(currentNumber, Green);
-}
-
-void LEDMatrix::updateCountdown() {
-    unsigned long currentTime = millis();
-    if(currentTime - lastUpdateTime >= COUNTDOWN_INTERVAL) {
-        lastUpdateTime = currentTime;
-        if(currentNumber > 0) {
-            currentNumber--;
-            showNumber(currentNumber, Green);
-        }
-    }
+// 获取NeoPixel对象的引用，用于调整亮度
+Adafruit_NeoPixel& LEDMatrix::getStrip() {
+    return strip;
 } 

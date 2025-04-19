@@ -6,12 +6,21 @@
 #include <freertos/queue.h>
 #include <freertos/semphr.h>
 #include "../core/types.h"
-#include "../modes/BatteryMode.h"
-#include "../modes/TimerMode.h"
+#include "../core/Mode.h"
+#include <vector>
 
-extern BatteryMode batteryMode;
-extern TimerMode timerMode;
+// 外部队列声明
 extern QueueHandle_t modeQueue;
 extern QueueHandle_t eventQueue;
 
-void modeTask(void *parameter); 
+// ModeTask函数声明
+void modeTask(void *parameter);
+
+// 模式管理函数
+void registerMode(Mode* mode);
+Mode* getCurrentMode();
+void initModeTask();
+int getRegisteredModeCount();
+void switchToNextMode();
+void switchToPreviousMode();
+void switchToMode(int modeIndex); 

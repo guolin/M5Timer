@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED矩阵墙模拟器</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/addons/p5.sound.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* 防止页面滚动 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #222;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        canvas {
+            display: block;
+        }
+        
+        .container {
+            text-align: center;
+        }
+        
+        .control-panel {
+            position: fixed;
+            bottom: 20px;
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            gap: 20px;
+        }
+        
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            font-size: 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            /* 禁止键盘导航到按钮 */
+            tabindex: -1;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        #restartGame {
+            background-color: #f44336;
+        }
+        
+        #restartGame:hover {
+            background-color: #d32f2f;
+        }
+        
+        #pauseGame {
+            background-color: #2196F3;
+        }
+        
+        #pauseGame:hover {
+            background-color: #1976D2;
+        }
+        
+        #configButton {
+            background-color: white;
+            color: black;
+        }
+        
+        #configButton.connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        /* 难度选择按钮样式 */
+        .difficulty-button {
+            background-color: #9C27B0;
+        }
+        
+        .difficulty-button:hover {
+            background-color: #7B1FA2;
+        }
+        
+        .difficulty-button.active {
+            background-color: #4A148C;
+        }
+        
+        .difficulty-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        #serialInfo {
+            position: fixed;
+            bottom: 60px;
+            width: 100%;
+            text-align: center;
+        }
+        
+        /* 配置对话框样式 */
+        #configDialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 700px;
+            background-color: #333;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            z-index: 1000;
+            display: none;
+        }
+        
+        .dialog-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .dialog-title {
+            font-size: 24px;
+            font-weight: bold;
+        }
+        
+        .close-button {
+            background-color: transparent;
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+        }
+        
+        .screen-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+        }
+        
+        .screen-button {
+            padding: 15px;
+            text-align: center;
+            background-color: white;
+            color: black;
+            border-radius: 4px;
+            cursor: pointer;
+            tabindex: -1;
+        }
+        
+        .screen-button.connected {
+            background-color: #4CAF50;
+            color: white;
+        }
+        
+        .dialog-footer {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        
+        #overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 999;
+            display: none;
+        }
+    </style>
+    <script>
+        // 禁止键盘导航
+        document.addEventListener('keydown', function(e) {
+            // 阻止方向键和Tab键的默认行为
+            if (e.key === 'Tab' || e.key === 'ArrowUp' || e.key === 'ArrowDown' || 
+                e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault();
+            }
+        }, true);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <div id="canvas-container"></div>
+    </div>
+    
+    <p id="serialInfo">串口状态: 未连接</p>
+    
+    <div class="difficulty-panel">
+        <button class="difficulty-button active" data-difficulty="easy" tabindex="-1">简单</button>
+        <button class="difficulty-button" data-difficulty="normal" tabindex="-1">普通</button>
+        <button class="difficulty-button" data-difficulty="hard" tabindex="-1">困难</button>
+    </div>
+    
+    <div class="control-panel">
+        <button id="configButton" tabindex="-1">配置屏幕</button>
+        <button id="pauseGame" tabindex="-1">暂停游戏</button>
+        <button id="restartGame" tabindex="-1">重启游戏</button>
+    </div>
+    
+    <!-- 配置对话框 -->
+    <div id="overlay"></div>
+    <div id="configDialog">
+        <div class="dialog-header">
+            <div class="dialog-title">屏幕配置</div>
+            <button class="close-button" id="closeConfig" tabindex="-1">×</button>
+        </div>
+        <div class="screen-grid">
+            <!-- 12个屏幕的按钮 -->
+            <div class="screen-button" data-index="0" tabindex="-1">屏幕 1</div>
+            <div class="screen-button" data-index="1" tabindex="-1">屏幕 2</div>
+            <div class="screen-button" data-index="2" tabindex="-1">屏幕 3</div>
+            <div class="screen-button" data-index="3" tabindex="-1">屏幕 4</div>
+            <div class="screen-button" data-index="4" tabindex="-1">屏幕 5</div>
+            <div class="screen-button" data-index="5" tabindex="-1">屏幕 6</div>
+            <div class="screen-button" data-index="6" tabindex="-1">屏幕 7</div>
+            <div class="screen-button" data-index="7" tabindex="-1">屏幕 8</div>
+            <div class="screen-button" data-index="8" tabindex="-1">屏幕 9</div>
+            <div class="screen-button" data-index="9" tabindex="-1">屏幕 10</div>
+            <div class="screen-button" data-index="10" tabindex="-1">屏幕 11</div>
+            <div class="screen-button" data-index="11" tabindex="-1">屏幕 12</div>
+        </div>
+        <div class="dialog-footer">
+            <button id="testScreens" tabindex="-1">测试屏幕</button>
+        </div>
+    </div>
+
+    <script src="sketch.js"></script>
+</body>
+</html> 
