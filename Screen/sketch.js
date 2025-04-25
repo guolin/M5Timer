@@ -1538,6 +1538,22 @@ function keyPressed() {
         return false;
     }
     
+    // R键重新开始游戏
+    if (keyCode === 82) { // R键的keyCode是82
+        if (gameState.isGameStarted) {
+            // 如果游戏已经开始，点击后重新开始
+            game.reset();
+            gameState.paused = false;
+            gameState.isGameStarted = false;
+            document.getElementById('restartGame').textContent = '开始';
+            document.getElementById('pauseGame').textContent = '暂停游戏';
+        } else {
+            // 如果游戏还没开始，点击后开始倒计时
+            startCountdown();
+        }
+        return false;
+    }
+    
     if (gameState.paused) return false; // 游戏暂停时禁用其他控制
     
     if (keyCode === LEFT_ARROW) {
