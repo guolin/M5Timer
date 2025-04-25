@@ -80,6 +80,16 @@ let playerShootSound;
 let alienShootSound;
 let explosionSound;
 let audioActivated = false;
+// 添加倒计时音效
+let countdownStartSound;     // 321开始倒数时播放 (00001.mp3)
+let timerStartSound;         // 60s开始计时时播放 (00002.mp3)
+let timerWarningSound;       // 35s和25s播放 (00003.mp3)
+let timerEndSound;           // 0s游戏结束时播放 (00004.mp3)
+// 添加倒计时声音播放标志
+let hasPlayed60s = false;
+let hasPlayed35s = false;
+let hasPlayed25s = false;
+let hasPlayed0s = false;
 
 // 串口相关变量
 let ports = new Array(12).fill(null);  // 存储所有串口
@@ -424,6 +434,68 @@ const SKULL_PATTERN = [
     [1, 0, 0, 0, 0, 0, 0, 1]
 ];
 
+// END字母图案定义 (24x12)
+const END_PATTERN = [
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0],
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+
+// 简化版END字母图案定义 (18x8)，更适合游戏区域显示
+const END_PATTERN_SIMPLE = [
+    [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+    [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1],
+    [1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+];
+
+// 定义E、N、D三个字母的图案，每个字母用于一个8x8屏幕
+const E_PATTERN = [
+    [1, 1, 1, 1, 1, 1, 1, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 1, 1, 1, 1, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 0, 0, 0, 0, 0, 0, 0],
+    [1, 1, 1, 1, 1, 1, 1, 0]
+];
+
+const N_PATTERN = [
+    [1, 0, 0, 0, 0, 0, 1, 0],
+    [1, 1, 0, 0, 0, 0, 1, 0],
+    [1, 0, 1, 0, 0, 0, 1, 0],
+    [1, 0, 0, 1, 0, 0, 1, 0],
+    [1, 0, 0, 0, 1, 0, 1, 0],
+    [1, 0, 0, 0, 0, 1, 1, 0],
+    [1, 0, 0, 0, 0, 0, 1, 0],
+    [1, 0, 0, 0, 0, 0, 1, 0]
+];
+
+const D_PATTERN = [
+    [1, 1, 1, 1, 1, 0, 0, 0],
+    [1, 0, 0, 0, 0, 1, 0, 0],
+    [1, 0, 0, 0, 0, 0, 1, 0],
+    [1, 0, 0, 0, 0, 0, 1, 0],
+    [1, 0, 0, 0, 0, 0, 1, 0],
+    [1, 0, 0, 0, 0, 0, 1, 0],
+    [1, 0, 0, 0, 0, 1, 0, 0],
+    [1, 1, 1, 1, 1, 0, 0, 0]
+];
+
 // 数字图案定义 (4x8)
 const DIGIT_PATTERNS = [
     [ // 0
@@ -563,6 +635,11 @@ class Game {
         this.countdown = 60; // 60秒倒计时
         this.lastCountdownUpdate = Date.now();
         
+        // 重置声音播放标志（仅重置游戏内倒计时的标志）
+        hasPlayed35s = false;
+        hasPlayed25s = false;
+        hasPlayed0s = false;
+        
         this.initAliens();
         this.initShields();
     }
@@ -616,7 +693,22 @@ class Game {
             // 倒计时结束，游戏结束
             if (this.countdown <= 0) {
                 this.gameOver = true;
+                // 播放游戏结束声音
+                if (!hasPlayed0s) {
+                    playSoundSafely(timerEndSound);
+                    hasPlayed0s = true;
+                }
                 return;
+            }
+            
+            // 在特定的倒计时时间点播放声音
+            if (this.countdown === 35 && !hasPlayed35s) {
+                playSoundSafely(timerWarningSound);
+                hasPlayed35s = true;
+            }
+            else if (this.countdown === 25 && !hasPlayed25s) {
+                playSoundSafely(timerWarningSound);
+                hasPlayed25s = true;
             }
         }
 
@@ -815,6 +907,11 @@ class Game {
                     this.alienBullets.splice(i, 1);
                     if (this.player.lives <= 0) {
                         this.gameOver = true;
+                        // 播放游戏结束音效
+                        if (!hasPlayed0s) {
+                            playSoundSafely(timerEndSound);
+                            hasPlayed0s = true;
+                        }
                     }
                     break;
                 }
@@ -866,6 +963,11 @@ class Game {
         // 检查外星人是否到达底部
         if (this.aliens.some(a => a.alive && a.y >= TOTAL_HEIGHT - 3)) {
             this.gameOver = true;
+            // 播放游戏结束音效
+            if (!hasPlayed0s) {
+                playSoundSafely(timerEndSound);
+                hasPlayed0s = true;
+            }
         }
     }
 
@@ -994,6 +1096,66 @@ class Game {
             drawPattern(lifeRow, lifeCol, SKULL_PATTERN, color(255, 255, 255));
         }
 
+        // 检查游戏是否已经开始或是否还在等待开始
+        if (!gameState.isGameStarted) {
+            // 游戏等待开始状态，保持游戏区域黑屏
+            return;
+        }
+
+        // 如果游戏结束，显示"END"字样
+        if (this.gameOver) {
+            // 不使用return，让游戏结束画面保持显示
+            // 在三个屏幕上分别显示E、N、D字母
+            // 第一个屏幕：E (第1行第1列)
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    if (E_PATTERN[y][x]) {
+                        leds[1][0][y][x] = color(255, 0, 0); // 红色E
+                    }
+                }
+            }
+            
+            // 第二个屏幕：N (第1行第2列)
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    if (N_PATTERN[y][x]) {
+                        leds[1][1][y][x] = color(255, 0, 0); // 红色N
+                    }
+                }
+            }
+            
+            // 第三个屏幕：D (第1行第3列)
+            for (let y = 0; y < 8; y++) {
+                for (let x = 0; x < 8; x++) {
+                    if (D_PATTERN[y][x]) {
+                        leds[1][2][y][x] = color(255, 0, 0); // 红色D
+                    }
+                }
+            }
+        }
+
+        // 如果游戏暂停，显示暂停标志
+        if (gameState.paused) {
+            // 在屏幕中央显示两条竖线表示暂停
+            const centerX = Math.floor(TOTAL_WIDTH / 2);
+            const centerY = Math.floor(TOTAL_HEIGHT / 2);
+            
+            // 左侧暂停线
+            setLED(centerX - 2, centerY - 2, color(255, 255, 255));
+            setLED(centerX - 2, centerY - 1, color(255, 255, 255));
+            setLED(centerX - 2, centerY, color(255, 255, 255));
+            setLED(centerX - 2, centerY + 1, color(255, 255, 255));
+            setLED(centerX - 2, centerY + 2, color(255, 255, 255));
+            
+            // 右侧暂停线
+            setLED(centerX + 2, centerY - 2, color(255, 255, 255));
+            setLED(centerX + 2, centerY - 1, color(255, 255, 255));
+            setLED(centerX + 2, centerY, color(255, 255, 255));
+            setLED(centerX + 2, centerY + 1, color(255, 255, 255));
+            setLED(centerX + 2, centerY + 2, color(255, 255, 255));
+            return; // 暂停时不再绘制其他游戏元素
+        }
+
         // 绘制玩家
         setLED(this.player.x, this.player.y, color(...PLAYER_COLOR));
 
@@ -1048,36 +1210,6 @@ class Game {
                     setLED(x, y, color(255, 255, 255)); // 纯白色
                 }
             }
-        }
-
-        // 如果游戏结束，显示"GAME OVER"
-        if (this.gameOver) {
-            // 简单显示一个X表示游戏结束
-            setLED(TOTAL_WIDTH / 2 - 1, TOTAL_HEIGHT / 2, color(255, 0, 0));
-            setLED(TOTAL_WIDTH / 2 + 1, TOTAL_HEIGHT / 2, color(255, 0, 0));
-            setLED(TOTAL_WIDTH / 2, TOTAL_HEIGHT / 2 - 1, color(255, 0, 0));
-            setLED(TOTAL_WIDTH / 2, TOTAL_HEIGHT / 2 + 1, color(255, 0, 0));
-        }
-        
-        // 如果游戏暂停，显示暂停标志
-        if (gameState.paused) {
-            // 在屏幕中央显示两条竖线表示暂停
-            const centerX = Math.floor(TOTAL_WIDTH / 2);
-            const centerY = Math.floor(TOTAL_HEIGHT / 2);
-            
-            // 左侧暂停线
-            setLED(centerX - 2, centerY - 2, color(255, 255, 255));
-            setLED(centerX - 2, centerY - 1, color(255, 255, 255));
-            setLED(centerX - 2, centerY, color(255, 255, 255));
-            setLED(centerX - 2, centerY + 1, color(255, 255, 255));
-            setLED(centerX - 2, centerY + 2, color(255, 255, 255));
-            
-            // 右侧暂停线
-            setLED(centerX + 2, centerY - 2, color(255, 255, 255));
-            setLED(centerX + 2, centerY - 1, color(255, 255, 255));
-            setLED(centerX + 2, centerY, color(255, 255, 255));
-            setLED(centerX + 2, centerY + 1, color(255, 255, 255));
-            setLED(centerX + 2, centerY + 2, color(255, 255, 255));
         }
     }
 
@@ -1134,6 +1266,23 @@ function preload() {
             explosionSound = loadSound('sounds/explosion.wav',
                 () => console.log('爆炸音效加载成功'),
                 (err) => console.error('加载爆炸音效失败', err));
+                
+            // 加载倒计时音效
+            countdownStartSound = loadSound('sounds/00001.mp3',
+                () => console.log('倒计时开始音效加载成功'),
+                (err) => console.error('加载倒计时开始音效失败', err));
+                
+            timerStartSound = loadSound('sounds/00002.mp3',
+                () => console.log('计时开始音效加载成功'),
+                (err) => console.error('加载计时开始音效失败', err));
+                
+            timerWarningSound = loadSound('sounds/00003.mp3',
+                () => console.log('计时警告音效加载成功'),
+                (err) => console.error('加载计时警告音效失败', err));
+                
+            timerEndSound = loadSound('sounds/00004.mp3',
+                () => console.log('计时结束音效加载成功'),
+                (err) => console.error('加载计时结束音效失败', err));
         } catch (e) {
             console.error('加载音效文件时出错', e);
         }
@@ -1335,6 +1484,15 @@ function startCountdown() {
     gameState.lastCountdownUpdate = Date.now();
     gameState.isGameStarted = true;
     document.getElementById('restartGame').textContent = '重新开始';
+    
+    // 播放倒计时开始音效
+    playSoundSafely(countdownStartSound);
+    
+    // 重置所有音效播放标志
+    hasPlayed60s = false;
+    hasPlayed35s = false;
+    hasPlayed25s = false;
+    hasPlayed0s = false;
 }
 
 // 修改updateGame函数
@@ -1350,6 +1508,10 @@ function updateGame() {
             if (gameState.countdown <= 0) {
                 game.reset();
                 gameState.paused = false;
+                
+                // 播放计时开始音效
+                playSoundSafely(timerStartSound);
+                hasPlayed60s = true;
             }
         }
         return;  // 倒计时期间不更新游戏
@@ -1357,6 +1519,7 @@ function updateGame() {
     
     if (!gameState.paused && gameState.isGameStarted) {
         game.update();
+        // 游戏声音播放逻辑已移至Game类的update方法中
     }
     game.draw();
     
