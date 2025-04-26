@@ -216,8 +216,11 @@ void TimerMode::update() {
         } else if (lastRemainingSeconds > 0 && remainingSeconds <= 0) {
             // 从1变为0秒，播放004，但不降低亮度
             audioPlayTrack(4);
-            // 不再降低LED亮度
+            // 确保不会降低LED亮度，并且恢复到原始亮度
             isPlayingSoundAtKeyTime = false; // 确保不会触发亮度恢复逻辑
+            // 确保LED使用原始亮度
+            ledMatrix.getStrip().setBrightness(originalBrightness);
+            ledMatrix.getStrip().show();
         }
         lastRemainingSeconds = remainingSeconds;
         
@@ -531,6 +534,8 @@ void TimerMode::updateLEDDisplay() {
         // 倒计时状态，显示倒计时数字
         ledMatrix.showNumber(countdownSeconds, COLOR_BLUE);
         ledMatrix.update();
+        // 倒计时状态下，保持心跳
+        resetActivityTimer();
         return;
     } else if (isRunning && !isPaused) {
         // 计算精确的剩余时间
@@ -543,10 +548,22 @@ void TimerMode::updateLEDDisplay() {
         
         // 确保不会出现负值
         if (ceiledSeconds < 0) ceiledSeconds = 0;
+        
+        // 当秒数变化时，重置活动计时器
+        static int lastCeiledSeconds = -1;
+        if (ceiledSeconds != lastCeiledSeconds) {
+            resetActivityTimer();
+            lastCeiledSeconds = ceiledSeconds;
+        }
     } else {
         // 非运行状态下使用当前存储的remainingSeconds
         // 由于在resetTimer()中设置为60，不需要额外的向上取整
         ceiledSeconds = remainingSeconds;
+        
+        // 如果是计时结束状态(0秒)，保持心跳
+        if (ceiledSeconds == 0) {
+            resetActivityTimer();
+        }
     }
     
     // 显示向上取整后的时间
@@ -732,6 +749,13 @@ void TimerMode::updateTimeDisplay() {
         unsigned long elapsedMillis = currentTime - startTime;
         float elapsedSeconds = elapsedMillis / 1000.0f;
         int countdownValue = 3 - ceil(elapsedSeconds);  // 使用向上取整确保平滑过渡
+        
+        // 检查倒计时数字是否变化，如果变化，重置活动计时器
+        if (countdownValue != lastDisplayedSeconds) {
+            resetActivityTimer();  // 添加心跳，防止进入省电模式
+            lastDisplayedSeconds = countdownValue;
+        }
+        
         if (countdownValue > 0) {
             // 清除整个显示区域
             M5.Display.fillRect(TIME_DISPLAY_X, TIME_DISPLAY_Y, TIME_DISPLAY_WIDTH, TIME_DISPLAY_HEIGHT, BLACK);
@@ -761,6 +785,8 @@ void TimerMode::updateTimeDisplay() {
     } else if (!isCountdown && remainingSeconds == 0) {
         // 计时结束但未重置的特殊状态，显示0.00
         remainingTime = 0.0f;
+        // 计时结束后也定期重置活动计时器，防止进入省电模式
+        resetActivityTimer();
     }
     
     // 确保不会出现负值
@@ -773,6 +799,11 @@ void TimerMode::updateTimeDisplay() {
     // 确保当到达0秒时，显示精确的0.00而不是四舍五入
     if (seconds == 0 && !isRunning) {
         milliseconds = 0;
+    }
+    
+    // 检查秒数是否变化，如果变化，重置活动计时器
+    if (seconds != lastDisplayedSeconds) {
+        resetActivityTimer();  // 添加心跳，防止进入省电模式
     }
     
     // 清除整个显示区域
