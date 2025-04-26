@@ -190,9 +190,9 @@ void TimerMode::update() {
         remainingSeconds = ceil(remainingTime);  // 使用向上取整而不是向下取整
         int remainingMillis = (int)((remainingTime - (int)remainingTime) * 1000);  // 小数部分是毫秒
         
-        // 在关键时间点提前1秒播放声音并降低LED亮度
-        if (lastRemainingSeconds > 35 && remainingSeconds <= 35) {
-            // 从36变为35秒，播放003
+        // 在关键时间点提前播放声音并降低LED亮度（36、26、1秒时就触发）
+        if (lastRemainingSeconds > 36 && remainingSeconds <= 36) {
+            // 提前播放35秒声音
             audioPlayTrack(3);
             // 降低LED亮度到当前亮度的两个级别
             soundBrightnessLevel = brightnessLevel >= 2 ? brightnessLevel - 2 : 0;
@@ -202,8 +202,8 @@ void TimerMode::update() {
             isPlayingSoundAtKeyTime = true;
             // 设置计时器，2秒后恢复原始亮度
             soundPlayStartTime = currentTime;
-        } else if (lastRemainingSeconds > 25 && remainingSeconds <= 25) {
-            // 从26变为25秒，播放003
+        } else if (lastRemainingSeconds > 26 && remainingSeconds <= 26) {
+            // 提前播放25秒声音
             audioPlayTrack(3);
             // 降低LED亮度到当前亮度的两个级别
             soundBrightnessLevel = brightnessLevel >= 2 ? brightnessLevel - 2 : 0;
@@ -213,8 +213,8 @@ void TimerMode::update() {
             isPlayingSoundAtKeyTime = true;
             // 设置计时器，2秒后恢复原始亮度
             soundPlayStartTime = currentTime;
-        } else if (lastRemainingSeconds > 0 && remainingSeconds <= 0) {
-            // 从1变为0秒，播放004，但不降低亮度
+        } else if (lastRemainingSeconds > 1 && remainingSeconds <= 1) {
+            // 提前播放0秒声音
             audioPlayTrack(4);
             // 确保不会降低LED亮度，并且恢复到原始亮度
             isPlayingSoundAtKeyTime = false; // 确保不会触发亮度恢复逻辑
