@@ -50,6 +50,10 @@ private:
     unsigned long lastDisplayedTime; // 上次显示更新的时间戳
     int lastDisplayedSeconds;      // 新增：上次显示的秒数
     int lastDisplayedMilliseconds; // 新增：上次显示的毫秒数
+    
+    // 关键时间点降低LED亮度相关变量
+    bool isPlayingSoundAtKeyTime;   // 是否正在关键时间点播放声音
+    unsigned long soundPlayStartTime; // 声音开始播放的时间
 
     // UI相关变量
     static const uint16_t LIGHT_GRAY = 0x8410;  // 浅灰色

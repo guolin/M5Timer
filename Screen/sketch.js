@@ -73,7 +73,7 @@ const DIFFICULTY_LEVELS = {
 };
 
 // 当前难度设置
-let currentDifficulty = DIFFICULTY_LEVELS.NORMAL;
+let currentDifficulty = DIFFICULTY_LEVELS.EASY;  // 默认为简单难度，与HTML中active的按钮一致
 
 // 声音效果
 let playerShootSound;
@@ -1314,8 +1314,37 @@ function setup() {
     // 初始化对话框控制
     initDialogControl();
     
+    // 设置当前难度按钮状态
+    updateDifficultyButtonState();
+    
     // 游戏主循环 - 提高更新频率
     setInterval(updateGame, 100);  // 改为每100ms更新一次，提高碰撞检测精度
+}
+
+// 更新难度按钮状态
+function updateDifficultyButtonState() {
+    const difficultyButtons = document.querySelectorAll('.difficulty-button');
+    
+    // 移除所有按钮的active类
+    difficultyButtons.forEach(btn => btn.classList.remove('active'));
+    
+    // 根据当前难度设置active类
+    let activeButtonSelector;
+    if (currentDifficulty === DIFFICULTY_LEVELS.EASY) {
+        activeButtonSelector = '[data-difficulty="easy"]';
+    } else if (currentDifficulty === DIFFICULTY_LEVELS.NORMAL) {
+        activeButtonSelector = '[data-difficulty="normal"]';
+    } else if (currentDifficulty === DIFFICULTY_LEVELS.HARD) {
+        activeButtonSelector = '[data-difficulty="hard"]';
+    }
+    
+    // 为当前难度按钮添加active类
+    if (activeButtonSelector) {
+        const activeButton = document.querySelector(activeButtonSelector);
+        if (activeButton) {
+            activeButton.classList.add('active');
+        }
+    }
 }
 
 // 初始化对话框控制
@@ -1330,9 +1359,45 @@ function initDialogControl() {
     const screenButtons = document.querySelectorAll('.screen-button');
     const pauseGameButton = document.getElementById('pauseGame');
     const restartGameButton = document.getElementById('restartGame');
+    // 添加难度按钮选择器
+    const difficultyButtons = document.querySelectorAll('.difficulty-button');
     
     console.log('暂停游戏按钮:', pauseGameButton);
     console.log('重启游戏按钮:', restartGameButton);
+    
+    // 添加难度按钮点击事件
+    difficultyButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            const difficulty = button.getAttribute('data-difficulty');
+            console.log('切换难度为:', difficulty);
+            
+            // 移除所有按钮的active类
+            difficultyButtons.forEach(btn => btn.classList.remove('active'));
+            
+            // 为当前按钮添加active类
+            button.classList.add('active');
+            
+            // 设置游戏难度
+            switch(difficulty) {
+                case 'easy':
+                    currentDifficulty = DIFFICULTY_LEVELS.EASY;
+                    break;
+                case 'normal':
+                    currentDifficulty = DIFFICULTY_LEVELS.NORMAL;
+                    break;
+                case 'hard':
+                    currentDifficulty = DIFFICULTY_LEVELS.HARD;
+                    break;
+            }
+            
+            // 如果游戏已经开始，询问是否要重新开始
+            if (gameState.isGameStarted && !gameState.gameOver) {
+                if (confirm('更改难度将会重新开始游戏，确定要继续吗？')) {
+                    game.reset();
+                }
+            }
+        });
+    });
     
     // 暂停游戏按钮点击事件
     if (pauseGameButton) {
@@ -1428,6 +1493,9 @@ function colorToNumber(r, g, b) {
     
     // 根据RGB值判断颜色
     if (r > g && r > b) {
+        // 特殊处理橙色 - 高红色分量、中等绿色分量、低蓝色分量
+        if (r > 200 && g > 100 && g < 180 && b < 50) return COLOR_MAP.brown; // 橙色映射为棕色(11)
+        
         if (r < 100) return COLOR_MAP.darkRed;
         if (g > 100 && b > 100) return COLOR_MAP.pink;
         return COLOR_MAP.red;
@@ -1514,6 +1582,13 @@ function updateGame() {
                 hasPlayed60s = true;
             }
         }
+        
+        // 确保在倒计时期间也发送LED数据
+        const configDialog = document.getElementById('configDialog');
+        if (configDialog.style.display !== 'block') {
+            sendLEDData();
+        }
+        
         return;  // 倒计时期间不更新游戏
     }
     

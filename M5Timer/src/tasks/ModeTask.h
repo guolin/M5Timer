@@ -23,4 +23,10 @@ void initModeTask();
 int getRegisteredModeCount();
 void switchToNextMode();
 void switchToPreviousMode();
-void switchToMode(int modeIndex); 
+void switchToMode(int modeIndex);
+
+// ScreenMode相关函数
+bool isScreenMode(Mode* mode);
+int getScreenModeIndex();
+void setScreenModeAvailable(bool available);
+bool switchToScreenMode(); 
