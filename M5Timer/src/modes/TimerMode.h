@@ -62,6 +62,7 @@ private:
     
     // 亮度控制
     int brightnessLevel;  // 当前亮度等级 (0-4)
+    int soundBrightnessLevel;    // 添加声音播放时的亮度级别变量
     bool isBrightnessSelected;  // 亮度按钮是否被选中
     Preferences preferences;  // 用于保存设置
     

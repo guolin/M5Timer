@@ -26,6 +26,7 @@ extern LEDMatrix ledMatrix;
 #define TIME_DISPLAY_Y     30       // 时间显示Y坐标
 #define TIME_DISPLAY_HEIGHT 50      // 时间显示高度区域
 #define TIME_DISPLAY_WIDTH  180     // 时间显示宽度区域
+#define VERSION_TEXT       "v1.0"   // 版本号文本
 
 // 定义常用颜色
 #define BLACK 0x0000
@@ -69,6 +70,7 @@ TimerMode::TimerMode() : Mode("Timer") {
     lastDisplayedSeconds = 60;
     lastDisplayedMilliseconds = 0;
     isPlayingSoundAtKeyTime = false;  // 初始化新添加的变量
+    soundBrightnessLevel = 0;         // 初始化声音播放时的亮度级别
     
     // 初始化颜色 - 改为红色和绿色
     tensColor = 0xFF0000;  // 红色
@@ -118,6 +120,12 @@ void TimerMode::begin() {
     // 绘制UI元素
     drawTimer();
     drawInfoBar();
+    
+    // 在右上角显示版本号
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(DARK_GRAY, BLACK);
+    M5.Display.setCursor(210, 5);
+    M5.Display.print(VERSION_TEXT);
     
     // 显示秒表图标
     showStopwatchIcon();
@@ -179,15 +187,17 @@ void TimerMode::update() {
         
         // 计算剩余秒数和毫秒
         float remainingTime = 60.0f - (elapsedMillis / 1000.0f);
-        remainingSeconds = (int)remainingTime;  // 整数部分是秒数
-        int remainingMillis = (int)((remainingTime - remainingSeconds) * 1000);  // 小数部分是毫秒
+        remainingSeconds = ceil(remainingTime);  // 使用向上取整而不是向下取整
+        int remainingMillis = (int)((remainingTime - (int)remainingTime) * 1000);  // 小数部分是毫秒
         
         // 在关键时间点提前1秒播放声音并降低LED亮度
         if (lastRemainingSeconds > 35 && remainingSeconds <= 35) {
             // 从36变为35秒，播放003
             audioPlayTrack(3);
-            // 降低LED亮度到10%以减少电流消耗
-            ledMatrix.getStrip().setBrightness(LED_SOUND_BRIGHT);
+            // 降低LED亮度到当前亮度的两个级别
+            soundBrightnessLevel = brightnessLevel >= 2 ? brightnessLevel - 2 : 0;
+            int soundBrightness = map(soundBrightnessLevel, 0, 4, 5, LED_NORMAL_BRIGHT);
+            ledMatrix.getStrip().setBrightness(soundBrightness);
             ledMatrix.getStrip().show();
             isPlayingSoundAtKeyTime = true;
             // 设置计时器，2秒后恢复原始亮度
@@ -195,21 +205,19 @@ void TimerMode::update() {
         } else if (lastRemainingSeconds > 25 && remainingSeconds <= 25) {
             // 从26变为25秒，播放003
             audioPlayTrack(3);
-            // 降低LED亮度到10%以减少电流消耗
-            ledMatrix.getStrip().setBrightness(LED_SOUND_BRIGHT);
+            // 降低LED亮度到当前亮度的两个级别
+            soundBrightnessLevel = brightnessLevel >= 2 ? brightnessLevel - 2 : 0;
+            int soundBrightness = map(soundBrightnessLevel, 0, 4, 5, LED_NORMAL_BRIGHT);
+            ledMatrix.getStrip().setBrightness(soundBrightness);
             ledMatrix.getStrip().show();
             isPlayingSoundAtKeyTime = true;
             // 设置计时器，2秒后恢复原始亮度
             soundPlayStartTime = currentTime;
         } else if (lastRemainingSeconds > 0 && remainingSeconds <= 0) {
-            // 从1变为0秒，播放004
+            // 从1变为0秒，播放004，但不降低亮度
             audioPlayTrack(4);
-            // 降低LED亮度到10%以减少电流消耗
-            ledMatrix.getStrip().setBrightness(LED_SOUND_BRIGHT);
-            ledMatrix.getStrip().show();
-            isPlayingSoundAtKeyTime = true;
-            // 设置计时器，2秒后恢复原始亮度
-            soundPlayStartTime = currentTime;
+            // 不再降低LED亮度
+            isPlayingSoundAtKeyTime = false; // 确保不会触发亮度恢复逻辑
         }
         lastRemainingSeconds = remainingSeconds;
         
@@ -223,7 +231,7 @@ void TimerMode::update() {
         
         // 当计时器到达0秒时停止运行
         // 但不要立即重置，只标记为不运行，保持显示
-        if (remainingSeconds <= 0) {
+        if (remainingTime <= 0) {  // 使用remainingTime而非remainingSeconds判断
             remainingSeconds = 0;  // 确保显示0.00秒
             isRunning = false;      // 标记为不运行
             resetActivityTimer();
@@ -260,11 +268,17 @@ void TimerMode::exit() {
 }
 
 void TimerMode::drawTimer() {
-    // 清除计时器显示区域
-    M5.Display.fillRect(0, 0, 240, INFO_BAR_Y, BLACK);
+    // 清除计时器显示区域，但不包括右上角的版本号
+    M5.Display.fillRect(0, 0, 205, INFO_BAR_Y, BLACK);
     
     // 更新时间显示
     updateTimeDisplay();
+    
+    // 重新绘制版本号
+    M5.Display.setTextSize(1);
+    M5.Display.setTextColor(DARK_GRAY, BLACK);
+    M5.Display.setCursor(210, 5);
+    M5.Display.print(VERSION_TEXT);
 }
 
 void TimerMode::drawInfoBar() {
@@ -573,8 +587,10 @@ void TimerMode::startTimer() {
         lastRemainingSeconds = 60; // 确保初始状态正确
         lastDisplayedTime = 0; // 重置上次显示时间
         
-        // 在计时开始时降低LED亮度到10%以减少电流消耗
-        ledMatrix.getStrip().setBrightness(LED_SOUND_BRIGHT);
+        // 在计时开始时降低LED亮度到当前亮度的两个级别
+        soundBrightnessLevel = brightnessLevel >= 2 ? brightnessLevel - 2 : 0;
+        int soundBrightness = map(soundBrightnessLevel, 0, 4, 5, LED_NORMAL_BRIGHT);
+        ledMatrix.getStrip().setBrightness(soundBrightness);
         ledMatrix.getStrip().show();
         isPlayingSoundAtKeyTime = true;
         // 设置计时器，2秒后恢复原始亮度
@@ -679,7 +695,8 @@ void TimerMode::wakeFromPowerSaving() {
         // 恢复LED亮度，但要考虑是否正在关键时间点播放声音
         if (isPlayingSoundAtKeyTime) {
             // 如果正在播放关键时间点声音，保持降低的亮度
-            ledMatrix.getStrip().setBrightness(LED_SOUND_BRIGHT);
+            int soundBrightness = map(soundBrightnessLevel, 0, 4, 5, LED_NORMAL_BRIGHT);
+            ledMatrix.getStrip().setBrightness(soundBrightness);
         } else {
             // 否则恢复原始亮度
             ledMatrix.getStrip().setBrightness(originalBrightness);
@@ -712,7 +729,9 @@ void TimerMode::updateTimeDisplay() {
     
     if (isCountdown) {
         // 倒计时状态，显示3、2、1（居中）
-        int countdownValue = 3 - ((currentTime - startTime) / 1000);
+        unsigned long elapsedMillis = currentTime - startTime;
+        float elapsedSeconds = elapsedMillis / 1000.0f;
+        int countdownValue = 3 - ceil(elapsedSeconds);  // 使用向上取整确保平滑过渡
         if (countdownValue > 0) {
             // 清除整个显示区域
             M5.Display.fillRect(TIME_DISPLAY_X, TIME_DISPLAY_Y, TIME_DISPLAY_WIDTH, TIME_DISPLAY_HEIGHT, BLACK);
